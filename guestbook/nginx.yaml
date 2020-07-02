@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: ingress-test
+spec:
+  selector:
+    matchLabels:
+      app: web
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      initContainers:
+      - name: prepare-html
+        image: lukaszbielinski/busybox-nonroot
+        imagePullPolicy: Always
+        command: ['/bin/sh', '-c']
+        args: [ 'cp  /tmp/base/index.html  /usr/share/nginx/html/index.html; echo "you are beeing served by: $POD_IP " >>  /usr/share/nginx/html/index.html ' ]
+        env:
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        volumeMounts:
+        - name: html-volume
+          mountPath: /usr/share/nginx/html
+        - name: base-volume
+          mountPath: /tmp/base
+      containers:
+      - name: web
+        image: nginxinc/nginx-unprivileged:stable
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: html-volume
+          mountPath: /usr/share/nginx/html
+        - name: base-volume
+          mountPath: /tmp/base
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+      volumes:
+      - name: base-volume
+        configMap:
+          name: welcome-html
+      - name: html-volume
+        emptyDir: {}
